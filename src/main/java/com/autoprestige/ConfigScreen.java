@@ -120,7 +120,7 @@ public class ConfigScreen extends Screen {
         g.drawString(this.font, "Nivel objetivo", lx, y + 34, 0xFFFFFFFF);
         g.drawString(this.font, "Retraso (ticks)", lx, y + 62, 0xFFFFFFFF);
         g.drawString(this.font, "Prestigios maximos", lx, y + 90, 0xFFFFFFFF);
-        g.drawString(this.font, "Slot confirmar (verde)", lx, y + 118, 0xFFFFFFFF);
+        g.drawString(this.font, "Slot estrella (respaldo)", lx, y + 118, 0xFFFFFFFF);
 
         String lv = PrestigeController.level >= 0 ? String.valueOf(PrestigeController.level) : "?";
         String pr = PrestigeController.prestige >= 0 ? String.valueOf(PrestigeController.prestige) : "?";
