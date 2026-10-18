@@ -11,15 +11,24 @@ import net.minecraft.world.scores.PlayerScoreEntry;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 
+import java.text.Normalizer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class PrestigeController {
     private enum State { IDLE, WAIT_GUI, WAIT_CLICK, WAIT_CLOSE, COOLDOWN }
 
-       private static final Pattern LEVEL = Pattern.compile("(?i)level\\D{0,8}?(\\d[\\d.,]*)");
+    private static final Pattern LEVEL = Pattern.compile("(?i)level\\D{0,8}?(\\d[\\d.,]*)");
     private static final Pattern PRESTIGE = Pattern.compile("(?i)prestige\\D{0,8}?(\\d[\\d.,]*)");
-    private static final Pattern LEVEL_UP = Pattern.compile("(?i)level\\s+[\\d.,]+\\s*(?:\\u2192|\\u279c|->|=>|>)\\s*([\\d.,]+)");
+    private static final Pattern LEVEL_UP = Pattern.compile("(?i)level\\s+\\d[\\d.,]*\\D{1,4}(\\d[\\d.,]*)");
+
+    // Letras en versalitas (small caps) -> letras normales
+    private static final char[] SC_FROM = {
+            '\u1D00', '\u0299', '\u1D04', '\u1D05', '\u1D07', '\uA730', '\u0262', '\u029C', '\u026A',
+            '\u1D0A', '\u1D0B', '\u029F', '\u1D0D', '\u0274', '\u1D0F', '\u1D18', '\u01EB', '\u0280',
+            '\uA731', '\u1D1B', '\u1D1C', '\u1D20', '\u1D21', '\u028F', '\u1D22'
+    };
+    private static final char[] SC_TO = "abcdefghijklmnopqrstuvwyz".toCharArray();
 
     private static State state = State.IDLE;
     private static int timer = 0;
@@ -49,13 +58,32 @@ public class PrestigeController {
         prestigesDone = 0;
     }
 
+    /** Quita colores, pasa letras raras a normales y deja solo texto legible. */
+    private static String norm(String s) {
+        if (s == null) return "";
+        s = ChatFormatting.stripFormatting(s);
+        if (s == null) return "";
+        s = Normalizer.normalize(s, Normalizer.Form.NFKC);
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            for (int k = 0; k < SC_FROM.length; k++) {
+                if (ch == SC_FROM[k]) {
+                    ch = SC_TO[k];
+                    break;
+                }
+            }
+            sb.append(ch);
+        }
+        return sb.toString();
+    }
+
     private static void hookChat() {
         if (hooked) return;
         hooked = true;
         ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
             try {
-                String text = ChatFormatting.stripFormatting(message.getString());
-                if (text == null) return;
+                String text = norm(message.getString());
                 Matcher m = LEVEL_UP.matcher(text);
                 if (m.find()) {
                     int lv = toInt(m.group(1));
@@ -151,7 +179,7 @@ public class PrestigeController {
 
     private static boolean isPrestigeScreen(Minecraft mc) {
         if (!(mc.screen instanceof AbstractContainerScreen<?> s)) return false;
-        String title = s.getTitle().getString().toLowerCase();
+        String title = norm(s.getTitle().getString()).toLowerCase();
         return title.contains(PrestigeConfig.INSTANCE.guiTitle.toLowerCase());
     }
 
@@ -172,8 +200,7 @@ public class PrestigeController {
                 for (PlayerScoreEntry e : sb.listPlayerScores(obj)) {
                     PlayerTeam team = sb.getPlayersTeam(e.owner());
                     Component c = PlayerTeam.formatNameForTeam(team, e.ownerName());
-                    String text = ChatFormatting.stripFormatting(c.getString());
-                    if (text == null) continue;
+                    String text = norm(c.getString());
                     lines++;
                     if (debug && lines <= 15) dbg.append("[").append(text).append("] ");
                     Matcher m = LEVEL.matcher(text);
