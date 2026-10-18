@@ -16,9 +16,11 @@ public class PrestigeConfig {
 
     /** Si esta activo, hace prestige solo cuando el nivel >= targetLevel. */
     public boolean autoEnabled = false;
-    /** true = lee nivel/prestige del scoreboard; false = solo manual (tecla / boton). */
+    /** true = hace prestige solo; false = solo manual (tecla / boton). */
     public boolean useScoreboard = true;
     public int targetLevel = 1150;
+    /** Cuantos niveles sube el objetivo despues de cada prestige confirmado (0 = no sube). */
+    public int levelStep = 5;
     /** Ticks de espera entre pasos (20 ticks = 1 segundo). */
     public int delayTicks = 4;
     public int maxPrestiges = 350;
