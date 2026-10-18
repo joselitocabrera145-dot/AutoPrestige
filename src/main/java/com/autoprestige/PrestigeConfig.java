@@ -22,8 +22,8 @@ public class PrestigeConfig {
     /** Ticks de espera entre pasos (20 ticks = 1 segundo). */
     public int delayTicks = 4;
     public int maxPrestiges = 350;
-    /** Slot del boton verde en el cofre (fila 4, primer slot = 27). */
-    public int confirmSlot = 27;
+    /** Slot de la estrella (por si no la encuentra): fila 2, columna del medio = 13. */
+    public int confirmSlot = 13;
     public String command = "prestige";
     /** Texto que debe contener el titulo del cofre. */
     public String guiTitle = "Prestige";
@@ -33,6 +33,11 @@ public class PrestigeConfig {
             if (Files.exists(FILE)) {
                 PrestigeConfig c = GSON.fromJson(Files.readString(FILE), PrestigeConfig.class);
                 if (c != null) INSTANCE = c;
+                // Migracion: 27 era el slot del panel verde (version vieja)
+                if (INSTANCE.confirmSlot == 27) {
+                    INSTANCE.confirmSlot = 13;
+                    save();
+                }
             } else {
                 save();
             }
