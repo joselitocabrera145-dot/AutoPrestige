@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "autoprestige",
+  "version": "${version}",
+  "name": "Auto Prestige",
+  "description": "Ejecuta /prestige y pulsa el boton verde de confirmacion automaticamente. Configurable desde Mod Menu.",
+  "authors": ["Tu nombre"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.autoprestige.AutoPrestigeMod"],
+    "modmenu": ["com.autoprestige.ModMenuIntegration"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}
