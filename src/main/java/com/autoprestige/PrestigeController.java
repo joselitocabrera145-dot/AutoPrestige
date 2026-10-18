@@ -39,6 +39,11 @@ public class PrestigeController {
     private static boolean manualRequest = false;
     private static boolean hooked = false;
 
+    // Verificacion de que el prestige se hizo de verdad
+    private static boolean pendingVerify = false;
+    private static int prestigeBefore = -1;
+    private static int verifyTimer = 0;
+
     public static int level = -1;
     public static int prestige = -1;
     public static int prestigesDone = 0;
@@ -123,23 +128,56 @@ public class PrestigeController {
         return configured;
     }
 
+    /** Sube el nivel objetivo (+levelStep) cuando un prestige se confirmo. */
+    private static void onPrestigeSuccess(PrestigeConfig cfg) {
+        pendingVerify = false;
+        prestigesDone++;
+        if (cfg.levelStep > 0) {
+            cfg.targetLevel += cfg.levelStep;
+            PrestigeConfig.save();
+        }
+        status = "Prestige hecho. Nuevo objetivo: " + cfg.targetLevel;
+        msg(status);
+    }
+
+    private static void checkVerify(PrestigeConfig cfg) {
+        verifyTimer++;
+        if (prestigeBefore >= 0 && prestige > prestigeBefore) {
+            onPrestigeSuccess(cfg);
+        } else if (verifyTimer > 300) { // 15 segundos
+            pendingVerify = false;
+            status = "El prestige no subio. Revisa el nivel objetivo (" + cfg.targetLevel + ")";
+            msg(status);
+            if (cfg.autoEnabled) {
+                cfg.autoEnabled = false;
+                PrestigeConfig.save();
+                msg("Modo automatico DESACTIVADO para no repetirlo en bucle.");
+            }
+        }
+    }
+
     public static void tick(Minecraft mc) {
         hookChat();
         if (mc.player == null || mc.level == null || mc.gameMode == null) {
             state = State.IDLE;
             manualRequest = false;
+            pendingVerify = false;
             return;
         }
         PrestigeConfig cfg = PrestigeConfig.INSTANCE;
 
-        if (cfg.useScoreboard && mc.player.tickCount % 5 == 0) {
+        if (mc.player.tickCount % 5 == 0) {
             scan(mc, false);
+        }
+        if (pendingVerify) {
+            checkVerify(cfg);
         }
 
         switch (state) {
             case IDLE -> {
                 boolean auto = cfg.autoEnabled
                         && cfg.useScoreboard
+                        && !pendingVerify
                         && prestigesDone < cfg.maxPrestiges
                         && level >= cfg.targetLevel;
                 if (manualRequest || auto) {
@@ -183,8 +221,16 @@ public class PrestigeController {
 
                 mc.gameMode.handleInventoryMouseClick(
                         screen.getMenu().containerId, slot, 0, ClickType.PICKUP, mc.player);
-                prestigesDone++;
-                status = "Prestige confirmado (" + prestigesDone + ") slot " + slot;
+
+                prestigeBefore = prestige;
+                if (prestigeBefore >= 0) {
+                    pendingVerify = true; // se confirma cuando suba el PRESTIGE del scoreboard
+                    verifyTimer = 0;
+                    status = "Clic hecho (slot " + slot + "), verificando...";
+                } else {
+                    onPrestigeSuccess(cfg); // no se puede verificar: se da por hecho
+                }
+
                 forceClose(mc); // cerrar justo despues del clic
                 state = State.CLOSING;
                 timer = 0;
