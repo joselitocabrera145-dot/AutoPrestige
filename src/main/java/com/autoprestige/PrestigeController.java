@@ -17,8 +17,8 @@ import java.util.regex.Pattern;
 public class PrestigeController {
     private enum State { IDLE, WAIT_GUI, WAIT_CLICK, WAIT_CLOSE, COOLDOWN }
 
-    private static final Pattern LEVEL = Pattern.compile("(?i)\\blevel\\s*:?\\s*([\\d.,]+)");
-    private static final Pattern PRESTIGE = Pattern.compile("(?i)\\bprestige\\s*:?\\s*([\\d.,]+)");
+       private static final Pattern LEVEL = Pattern.compile("(?i)level\\D{0,8}?(\\d[\\d.,]*)");
+    private static final Pattern PRESTIGE = Pattern.compile("(?i)prestige\\D{0,8}?(\\d[\\d.,]*)");
     private static final Pattern LEVEL_UP = Pattern.compile("(?i)level\\s+[\\d.,]+\\s*(?:\\u2192|\\u279c|->|=>|>)\\s*([\\d.,]+)");
 
     private static State state = State.IDLE;
