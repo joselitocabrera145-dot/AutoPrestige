@@ -1,11 +1,11 @@
 package com.autoprestige;
 
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.ClickType;
-import net.minecraft.world.scores.DisplaySlot;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.PlayerScoreEntry;
 import net.minecraft.world.scores.PlayerTeam;
@@ -19,10 +19,12 @@ public class PrestigeController {
 
     private static final Pattern LEVEL = Pattern.compile("(?i)\\blevel\\s*:?\\s*([\\d.,]+)");
     private static final Pattern PRESTIGE = Pattern.compile("(?i)\\bprestige\\s*:?\\s*([\\d.,]+)");
+    private static final Pattern LEVEL_UP = Pattern.compile("(?i)level\\s+[\\d.,]+\\s*(?:\\u2192|\\u279c|->|=>|>)\\s*([\\d.,]+)");
 
     private static State state = State.IDLE;
     private static int timer = 0;
     private static boolean manualRequest = false;
+    private static boolean hooked = false;
 
     public static int level = -1;
     public static int prestige = -1;
@@ -47,7 +49,25 @@ public class PrestigeController {
         prestigesDone = 0;
     }
 
+    private static void hookChat() {
+        if (hooked) return;
+        hooked = true;
+        ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
+            try {
+                String text = ChatFormatting.stripFormatting(message.getString());
+                if (text == null) return;
+                Matcher m = LEVEL_UP.matcher(text);
+                if (m.find()) {
+                    int lv = toInt(m.group(1));
+                    if (lv >= 0) level = lv;
+                }
+            } catch (Throwable ignored) {
+            }
+        });
+    }
+
     public static void tick(Minecraft mc) {
+        hookChat();
         if (mc.player == null || mc.level == null || mc.gameMode == null) {
             state = State.IDLE;
             manualRequest = false;
@@ -56,7 +76,7 @@ public class PrestigeController {
         PrestigeConfig cfg = PrestigeConfig.INSTANCE;
 
         if (cfg.useScoreboard && mc.player.tickCount % 5 == 0) {
-            detect(mc);
+            scan(mc, false);
         }
 
         switch (state) {
@@ -113,7 +133,7 @@ public class PrestigeController {
                     if (mc.screen instanceof AbstractContainerScreen<?>) {
                         mc.player.closeContainer();
                     }
-                    level = -1; // forzar nueva lectura del scoreboard
+                    level = -1; // forzar nueva lectura
                     startCooldown(40);
                 }
             }
@@ -135,28 +155,42 @@ public class PrestigeController {
         return title.contains(PrestigeConfig.INSTANCE.guiTitle.toLowerCase());
     }
 
-    /** Lee "LEVEL: x" y "PRESTIGE: y" de la barra lateral (scoreboard). */
+    /** Boton DETECTAR: escanea y escribe en el chat lo que encontro. */
     public static boolean detect(Minecraft mc) {
+        if (mc.level == null) return false;
+        scan(mc, true);
+        return level >= 0;
+    }
+
+    /** Revisa TODOS los scoreboards (no solo el de la barra lateral normal). */
+    private static void scan(Minecraft mc, boolean debug) {
         try {
             Scoreboard sb = mc.level.getScoreboard();
-            Objective obj = sb.getDisplayObjective(DisplaySlot.SIDEBAR);
-            if (obj == null) return false;
-            int lv = -1, pr = -1;
-            for (PlayerScoreEntry e : sb.listPlayerScores(obj)) {
-                PlayerTeam team = sb.getPlayersTeam(e.owner());
-                Component c = PlayerTeam.formatNameForTeam(team, e.ownerName());
-                String text = ChatFormatting.stripFormatting(c.getString());
-                if (text == null) continue;
-                Matcher m = LEVEL.matcher(text);
-                if (m.find()) lv = toInt(m.group(1));
-                m = PRESTIGE.matcher(text);
-                if (m.find()) pr = toInt(m.group(1));
+            int lv = -1, pr = -1, lines = 0;
+            StringBuilder dbg = new StringBuilder();
+            for (Objective obj : sb.getObjectives()) {
+                for (PlayerScoreEntry e : sb.listPlayerScores(obj)) {
+                    PlayerTeam team = sb.getPlayersTeam(e.owner());
+                    Component c = PlayerTeam.formatNameForTeam(team, e.ownerName());
+                    String text = ChatFormatting.stripFormatting(c.getString());
+                    if (text == null) continue;
+                    lines++;
+                    if (debug && lines <= 15) dbg.append("[").append(text).append("] ");
+                    Matcher m = LEVEL.matcher(text);
+                    if (m.find()) lv = toInt(m.group(1));
+                    m = PRESTIGE.matcher(text);
+                    if (m.find()) pr = toInt(m.group(1));
+                }
             }
             if (lv >= 0) level = lv;
             if (pr >= 0) prestige = pr;
-            return lv >= 0;
+            if (debug) {
+                msg("Objetivos: " + sb.getObjectives().size() + ", lineas: " + lines
+                        + " | nivel=" + level + " prestige=" + prestige);
+                if (dbg.length() > 0) msg(dbg.toString());
+            }
         } catch (Throwable t) {
-            return false;
+            if (debug) msg("Error leyendo scoreboard: " + t);
         }
     }
 
