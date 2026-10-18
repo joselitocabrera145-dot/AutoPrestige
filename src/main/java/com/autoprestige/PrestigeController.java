@@ -4,19 +4,23 @@ import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.PlayerScoreEntry;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
 
 import java.text.Normalizer;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class PrestigeController {
-    private enum State { IDLE, WAIT_GUI, WAIT_CLICK, WAIT_CLOSE, COOLDOWN }
+    private enum State { IDLE, WAIT_GUI, WAIT_CLICK, CLOSING, COOLDOWN }
 
     private static final Pattern LEVEL = Pattern.compile("(?i)level\\D{0,8}?(\\d[\\d.,]*)");
     private static final Pattern PRESTIGE = Pattern.compile("(?i)prestige\\D{0,8}?(\\d[\\d.,]*)");
@@ -94,6 +98,31 @@ public class PrestigeController {
         });
     }
 
+    /** true si hay un menu de cofre/servidor abierto (no el inventario propio). */
+    private static boolean serverMenuOpen(Minecraft mc) {
+        return mc.screen instanceof AbstractContainerScreen<?>
+                && !(mc.screen instanceof InventoryScreen);
+    }
+
+    private static void forceClose(Minecraft mc) {
+        mc.player.closeContainer();
+        if (serverMenuOpen(mc)) {
+            mc.setScreen(null);
+        }
+    }
+
+    /** Busca la estrella (nether star) en el menu; si no hay, usa el slot configurado. */
+    private static int findStarSlot(AbstractContainerScreen<?> screen, int configured) {
+        List<Slot> slots = screen.getMenu().slots;
+        int top = Math.max(0, slots.size() - 36); // quita el inventario del jugador
+        for (int i = 0; i < top; i++) {
+            if (slots.get(i).getItem().is(Items.NETHER_STAR)) {
+                return i;
+            }
+        }
+        return configured;
+    }
+
     public static void tick(Minecraft mc) {
         hookChat();
         if (mc.player == null || mc.level == null || mc.gameMode == null) {
@@ -138,31 +167,37 @@ public class PrestigeController {
                     return;
                 }
                 timer++;
-                if (timer >= Math.max(1, cfg.delayTicks)) {
-                    AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) mc.screen;
-                    int slot = cfg.confirmSlot;
-                    if (slot < 0 || slot >= screen.getMenu().slots.size()) {
-                        status = "Slot invalido: " + slot;
-                        mc.player.closeContainer();
-                        startCooldown(60);
-                        return;
-                    }
-                    mc.gameMode.handleInventoryMouseClick(
-                            screen.getMenu().containerId, slot, 0, ClickType.PICKUP, mc.player);
-                    prestigesDone++;
-                    status = "Prestige confirmado (" + prestigesDone + ")";
-                    state = State.WAIT_CLOSE;
-                    timer = 0;
+                if (timer < Math.max(1, cfg.delayTicks)) return;
+
+                AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) mc.screen;
+                int slot = findStarSlot(screen, cfg.confirmSlot);
+                if (slot < 0 || slot >= screen.getMenu().slots.size()) {
+                    status = "Slot invalido: " + slot;
+                    forceClose(mc);
+                    startCooldown(60);
+                    return;
                 }
+                // Esperar a que carguen los objetos del menu (maximo 2 segundos)
+                boolean hasItem = !screen.getMenu().slots.get(slot).getItem().isEmpty();
+                if (!hasItem && timer < 40) return;
+
+                mc.gameMode.handleInventoryMouseClick(
+                        screen.getMenu().containerId, slot, 0, ClickType.PICKUP, mc.player);
+                prestigesDone++;
+                status = "Prestige confirmado (" + prestigesDone + ") slot " + slot;
+                forceClose(mc); // cerrar justo despues del clic
+                state = State.CLOSING;
+                timer = 0;
             }
-            case WAIT_CLOSE -> {
+            case CLOSING -> {
+                // Durante ~2 segundos cierra cualquier menu del servidor que aparezca
                 timer++;
-                if (timer >= Math.max(1, cfg.delayTicks)) {
-                    if (mc.screen instanceof AbstractContainerScreen<?>) {
-                        mc.player.closeContainer();
-                    }
+                if (serverMenuOpen(mc)) {
+                    forceClose(mc);
+                }
+                if (timer >= 40) {
                     level = -1; // forzar nueva lectura
-                    startCooldown(40);
+                    startCooldown(20);
                 }
             }
             case COOLDOWN -> {
