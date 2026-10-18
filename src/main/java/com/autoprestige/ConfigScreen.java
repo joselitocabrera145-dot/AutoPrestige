@@ -8,10 +8,13 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 public class ConfigScreen extends Screen {
+    private static final int ROW = 24;
+
     private final Screen parent;
-    private EditBox targetBox, delayBox, maxBox, slotBox;
+    private EditBox targetBox, stepBox, delayBox, maxBox, slotBox;
     private Button modeBtn, toggleBtn;
     private String info = "";
+    private int top;
 
     public ConfigScreen(Screen parent) {
         super(Component.literal("Auto Prestige"));
@@ -31,7 +34,8 @@ public class ConfigScreen extends Screen {
         PrestigeConfig c = PrestigeConfig.INSTANCE;
         int cx = this.width / 2;
         int boxW = 100, boxX = cx + 20;
-        int y = this.height / 2 - 100;
+        top = Math.max(34, this.height / 2 - 150);
+        int y = top;
 
         modeBtn = Button.builder(modeText(), b -> {
             c.useScoreboard = !c.useScoreboard;
@@ -39,28 +43,30 @@ public class ConfigScreen extends Screen {
         }).bounds(boxX, y, boxW, 20).build();
         addRenderableWidget(modeBtn);
 
-        y += 28;
+        y += ROW;
         targetBox = box(boxX, y, boxW, String.valueOf(c.targetLevel));
-        y += 28;
+        y += ROW;
+        stepBox = box(boxX, y, boxW, String.valueOf(c.levelStep));
+        y += ROW;
         delayBox = box(boxX, y, boxW, String.valueOf(c.delayTicks));
-        y += 28;
+        y += ROW;
         maxBox = box(boxX, y, boxW, String.valueOf(c.maxPrestiges));
-        y += 28;
+        y += ROW;
         slotBox = box(boxX, y, boxW, String.valueOf(c.confirmSlot));
 
-        y += 28;
+        y += ROW;
         addRenderableWidget(Button.builder(Component.literal("DETECTAR"), b -> {
             boolean ok = PrestigeController.detect(Minecraft.getInstance());
             info = ok ? "Nivel y prestige detectados" : "No se pudo leer el scoreboard";
         }).bounds(boxX, y, boxW, 20).build());
 
-        y += 28;
+        y += ROW + 4;
         addRenderableWidget(Button.builder(Component.literal("Guardar configuracion"), b -> {
             apply();
             info = "Configuracion guardada";
         }).bounds(cx - 110, y, 220, 20).build());
 
-        y += 24;
+        y += ROW;
         toggleBtn = Button.builder(toggleText(), b -> {
             apply();
             c.autoEnabled = !c.autoEnabled;
@@ -69,14 +75,14 @@ public class ConfigScreen extends Screen {
         }).bounds(cx - 110, y, 220, 20).build();
         addRenderableWidget(toggleBtn);
 
-        y += 24;
+        y += ROW;
         addRenderableWidget(Button.builder(Component.literal("Hacer /prestige ahora"), b -> {
             apply();
             onClose();
             PrestigeController.requestNow();
         }).bounds(cx - 110, y, 220, 20).build());
 
-        y += 24;
+        y += ROW;
         addRenderableWidget(Button.builder(Component.literal("Cerrar"), b -> onClose())
                 .bounds(cx - 110, y, 220, 20).build());
     }
@@ -90,7 +96,7 @@ public class ConfigScreen extends Screen {
     }
 
     private Component modeText() {
-        return Component.literal("Modo: " + (PrestigeConfig.INSTANCE.useScoreboard ? "SCOREBOARD" : "MANUAL"));
+        return Component.literal("Modo: " + (PrestigeConfig.INSTANCE.useScoreboard ? "AUTOMATICO" : "MANUAL"));
     }
 
     private Component toggleText() {
@@ -102,6 +108,7 @@ public class ConfigScreen extends Screen {
     private void apply() {
         PrestigeConfig c = PrestigeConfig.INSTANCE;
         c.targetLevel = num(targetBox, c.targetLevel);
+        c.levelStep = num(stepBox, c.levelStep);
         c.delayTicks = Math.max(1, num(delayBox, c.delayTicks));
         c.maxPrestiges = num(maxBox, c.maxPrestiges);
         c.confirmSlot = num(slotBox, c.confirmSlot);
@@ -112,21 +119,22 @@ public class ConfigScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
         super.render(g, mouseX, mouseY, delta);
         int cx = this.width / 2;
-        int y = this.height / 2 - 100;
         int lx = cx - 110;
+        int y = top;
 
-        g.drawCenteredString(this.font, this.title, cx, y - 24, 0xFF55FFFF);
-        g.drawString(this.font, "Modo de deteccion", lx, y + 6, 0xFFFFFFFF);
-        g.drawString(this.font, "Nivel objetivo", lx, y + 34, 0xFFFFFFFF);
-        g.drawString(this.font, "Retraso (ticks)", lx, y + 62, 0xFFFFFFFF);
-        g.drawString(this.font, "Prestigios maximos", lx, y + 90, 0xFFFFFFFF);
-        g.drawString(this.font, "Slot estrella (respaldo)", lx, y + 118, 0xFFFFFFFF);
+        g.drawCenteredString(this.font, this.title, cx, y - 20, 0xFF55FFFF);
+        g.drawString(this.font, "Hacer prestige", lx, y + 6, 0xFFFFFFFF);
+        g.drawString(this.font, "Nivel objetivo", lx, y + ROW + 6, 0xFFFFFFFF);
+        g.drawString(this.font, "Subir objetivo por prestige", lx, y + ROW * 2 + 6, 0xFFFFFFFF);
+        g.drawString(this.font, "Retraso (ticks)", lx, y + ROW * 3 + 6, 0xFFFFFFFF);
+        g.drawString(this.font, "Prestigios maximos", lx, y + ROW * 4 + 6, 0xFFFFFFFF);
+        g.drawString(this.font, "Slot estrella (respaldo)", lx, y + ROW * 5 + 6, 0xFFFFFFFF);
 
         String lv = PrestigeController.level >= 0 ? String.valueOf(PrestigeController.level) : "?";
         String pr = PrestigeController.prestige >= 0 ? String.valueOf(PrestigeController.prestige) : "?";
-        g.drawString(this.font, "LV: " + lv + "  PRESTIGE: " + pr, lx, y + 146, 0xFF55FFFF);
+        g.drawString(this.font, "LV: " + lv + "  PRESTIGE: " + pr, lx, y + ROW * 6 + 6, 0xFF55FFFF);
 
-        int by = y + 146 + 28 + 24 * 3 + 30;
+        int by = y + ROW * 6 + 4 + ROW * 4 + 26;
         String line = !info.isEmpty() ? info : PrestigeController.status;
         g.drawString(this.font, line, lx, by, 0xFF55FF55);
         g.drawString(this.font, "Hechos: " + PrestigeController.prestigesDone + "/" + PrestigeConfig.INSTANCE.maxPrestiges
