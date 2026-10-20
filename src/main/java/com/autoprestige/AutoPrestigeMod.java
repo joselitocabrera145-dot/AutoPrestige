@@ -15,9 +15,9 @@ public class AutoPrestigeMod implements ClientModInitializer {
         PrestigeConfig.load();
 
         RUN_KEY = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-                "key.autoprestige.run", GLFW.GLFW_KEY_UNKNOWN, KeyMapping.Category.MISC));
+                "key.autoprestige.run", GLFW.GLFW_KEY_UNKNOWN, "key.categories.misc"));
         TOGGLE_KEY = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-                "key.autoprestige.toggle", GLFW.GLFW_KEY_UNKNOWN, KeyMapping.Category.MISC));
+                "key.autoprestige.toggle", GLFW.GLFW_KEY_UNKNOWN, "key.categories.misc"));
 
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             while (RUN_KEY.consumeClick()) {
